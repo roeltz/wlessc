@@ -43,7 +43,7 @@ if (fs.existsSync(input)) {
 	    		console.error("wl: error:", ("\n" + err).split(/\n/gm).join("\n\t"));
 	    	} else {
 		    	fs.writeSync(output, css);
-		    	console.log("wl: done);
+		    	console.log("wl: done");
 	    	}
     	});
     }
