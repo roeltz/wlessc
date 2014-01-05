@@ -1,0 +1,20 @@
+{
+	"name": "wl",
+	"description": "Straightforward command line tool to watch a single .less file for compiling",
+	"version": "0.1.0",
+	"dependencies": {
+		"less": "*"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/roeltz/wl.git"
+	},
+	"bin": {
+		"wl": "wl.js"
+	},
+	"author": {
+		"name": "Leonardo Rothe",
+		"email": "leo_rothe@msn.com",
+		"url": "http://leorothe.com/"
+	}
+}
