@@ -31,7 +31,7 @@ function compile(file, callback) {
     });
 }
 
-var input = path.resolve(process.cwd(), process.argv[2]);
+var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
 
 if (fs.existsSync(input)) {
 	var output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
@@ -43,6 +43,7 @@ if (fs.existsSync(input)) {
 	    		if (err.type === "Parse")
 	    			err = less.formatError(err);
 	    		console.error("wl: error:", ("\n" + err).split(/\n/gm).join("\n\t"));
+	    		process.exit(1);
 	    	} else {
 		    	fs.writeSync(output, css);
 		    	console.log("wl: done");
@@ -61,4 +62,5 @@ if (fs.existsSync(input)) {
 	console.log("Watching ", path.relative(process.cwd(), input), ">", path.relative(process.cwd(), output));
 } else {
 	console.error("File does not exist:", input);
+	process.exit(1);
 }
