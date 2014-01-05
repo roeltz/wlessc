@@ -76,7 +76,7 @@ if (fs.existsSync(input)) {
 	    console.log("Compiling...");
 	    compile(input, function(err, css){
 	    	if (err) {
-	    		if (err.type === "Parse") {
+	    		if (err.type) {
 	    			err = less.formatError(err);
 	    			console.error("Error:", ("\n" + err).split(/\n/gm).join("\n\t"));
 	    		} else {
