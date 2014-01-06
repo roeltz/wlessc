@@ -4,6 +4,8 @@
 
 You will have your output .css file in the same directory, with the same base name -just like GUI tools do by default.
 
+It uses the output AST from LESS to find @import'ed files and watches those too, so it's not that dumb. 
+
 This was done out of necessity in daily work, and it just does what I need it to do. Don't expect much from it.
 
 ## Installation ##
