@@ -5,30 +5,14 @@ var path = require("path");
 var less = require("less");
 var traverse = require("traverse");
 
-function imports(file, callback) {
-	var importedFilenames = [];
-	var parser = new less.Parser({
-        paths: [path.dirname(file)],
-        filename: input
-    });
-	fs.readFile(file, "utf-8", function(err, data){
-		if (err) {
-			callback(err);
-		} else {
-			parser.parse(data, function (err, tree) {
-				if (err) {
-					callback(err);
-				} else {
-					traverse(tree).forEach(function(x){
-						if (x instanceof less.tree.Import) {
-							importedFilenames.push(x.importedFilename);
-						}
-					});
-					callback(null, importedFilenames);
-				}
-			});
+function lookupImports(tree) {
+	var imports = [];
+	traverse(tree).forEach(function(x){
+		if (x instanceof less.tree.Import) {
+			imports.push(x.importedFilename);
 		}
-	});	
+	});
+	return imports;
 }
 
 function compile(file, callback) {
@@ -46,8 +30,9 @@ function compile(file, callback) {
 		            callback(err);
 		        } else {
 		            try {
-		                var css = tree.toCSS({ compress: true });
-		                callback(null, css);
+		                var css = tree.toCSS({compress: true});
+		                var imports = lookupImports(tree);
+		                callback(null, css, imports);
 		            } catch (ex) {
 		            	callback(ex);
 		            }
@@ -58,7 +43,7 @@ function compile(file, callback) {
 }
 
 function watch(file, callback) {
-	fs.watch(file, {persistent: true}, (function(){
+	return fs.watch(file, {persistent: true}, (function(){
 		var tid;
 		return function() {
 			clearTimeout(tid);
@@ -71,10 +56,34 @@ var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
 
 if (fs.existsSync(input)) {
 	var output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
-
+	var watches = {};
+	var compileCount = 0;
+	
+	function updateWatches(imports) {
+		var changes = {added:[], removed: []};
+		
+		for (var file in watches) {
+    		if (imports.indexOf(file) == -1) {
+    			watches[file].close();
+    			delete watches[file];
+    			changes.removed.push(file);
+    		}
+    	}
+    	
+    	imports.forEach(function(file){
+	    	if (!(file in watches)) {
+				watches[file] = watch(file, onchange);
+				changes.added.push(file);
+			}
+		});
+		
+		return changes;
+	}
+	
 	function onchange(){
 	    console.log("Compiling...");
-	    compile(input, function(err, css){
+	    
+	    compile(input, function(err, css, imports){
 	    	if (err) {
 	    		if (err.type) {
 	    			err = less.formatError(err);
@@ -84,25 +93,21 @@ if (fs.existsSync(input)) {
 	    		}
 	    	} else {
 		    	fs.writeFileSync(output, css);
-		    	console.log("Done.");
+		    	
+		    	var changes = updateWatches(imports);
+		    	if (changes.added.length)
+		    		console.log("Added:", changes.added);
+		    	if (changes.removed.length)
+		    		console.log("Removed:", changes.removed);
+		    		
+		    	console.log("Done [" + ++compileCount + "]");
 	    	}
     	});
     }
     
-    imports(input, function(err, paths){
-    	if (err) {
-    		console.error("Error while scanning for @import rules:", err);
-    	} else {
-	    	paths.unshift(input);
-	    	console.log("Watching:");
-    		paths.forEach(function(file){
-		    	console.log("\t" + file);
-    			watch(file, onchange);
-    		});
-	    	console.log("Output:\n\t", output, "\n");
-    		onchange();
-	    }
-    });
+    console.log("Watching...");
+    watch(input, onchange);
+	onchange();
 } else {
 	console.error("File does not exist:", input);
 }
