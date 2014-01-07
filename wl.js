@@ -3,19 +3,20 @@
 var fs = require("fs");
 var path = require("path");
 var less = require("less");
-var traverse = require("traverse");
 
 function lookupImports(tree) {
 	var imports = [];
-	traverse(tree).forEach(function(x){
-		if (x instanceof less.tree.Import) {
-			imports.push(x.importedFilename);
+	tree.rules.forEach(function(rule){
+		if ((rule instanceof less.tree.Import) && rule.importedFilename) {
+			imports.push(rule.importedFilename);
 		}
 	});
 	return imports;
 }
 
 function compile(file, callback) {
+	console.time("Compilation");
+
 	var parser = new less.Parser({
         paths: [path.dirname(file)],
         filename: input
@@ -32,6 +33,7 @@ function compile(file, callback) {
 		            try {
 		                var css = tree.toCSS({compress: true});
 		                var imports = lookupImports(tree);
+		                console.timeEnd("Compilation");
 		                callback(null, css, imports);
 		            } catch (ex) {
 		            	callback(ex);
@@ -89,7 +91,7 @@ if (fs.existsSync(input)) {
 	    			err = less.formatError(err);
 	    			console.error("Error:", ("\n" + err).split(/\n/gm).join("\n\t"));
 	    		} else {
-	    			console.error(err);
+	    			console.log(err.stack);
 	    		}
 	    	} else {
 		    	fs.writeFileSync(output, css);
