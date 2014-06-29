@@ -3,6 +3,7 @@
 var fs = require("fs");
 var path = require("path");
 var less = require("less");
+var autoprefixer = require("autoprefixer");
 
 function lookupImports(tree) {
 	var imports = [];
@@ -91,9 +92,21 @@ if (fs.existsSync(input)) {
 	    			err = less.formatError(err);
 	    			console.error("Error:", ("\n" + err).split(/\n/gm).join("\n\t"));
 	    		} else {
-	    			console.log(err.stack);
+	    			console.error(err.stack);
 	    		}
 	    	} else {
+	    		if (process.argv.indexOf("--no-prefix") == -1) {
+	    			console.log("Adding prefixes...");
+	    			
+	    			var browsersIndex = process.argv.indexOf("--prefix-browsers")
+	    			if (browsersIndex != -1) {
+	    				var browsers = process.argv[browsersIndex + 1].split(/\s*[,;]\s*/g);
+	    				autoprefixer = autoprefixer.apply(null, browsers);
+	    			}
+	    			
+	    			css = autoprefixer.process(css).css;
+	    		}
+	    		
 		    	fs.writeFileSync(output, css);
 		    	
 		    	var changes = updateWatches(imports);
