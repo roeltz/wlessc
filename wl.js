@@ -6,13 +6,15 @@ var less = require("less");
 var postcss = require("postcss");
 var autoprefixer = require("autoprefixer-core");
 
-var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
-var applyPrefixes = process.argv.indexOf("--no-prefix") == -1;
-var browsersIndex = process.argv.indexOf("--prefix-browsers");
-var targetBrowsers = browsersIndex != -1 ? process.argv[browsersIndex + 1].split(/\s*[,;]\s*/g) : null;
-
-if (targetBrowsers)
-	autoprefixer = autoprefixer(targetBrowsers);
+function cmdswitch(name, getValue) {
+	var index = process.argv.indexOf("--" + name);
+	if (index > -1) {
+		var s = process.argv.splice(index, getValue ? 2 : 1);
+		return getValue ? s[1] : true;
+	} else {
+		return false;
+	}
+}
 
 function compile(file, callback) {
     fs.readFile(file, "utf-8", function(err, lessInput){
@@ -47,12 +49,37 @@ function watch(file, callback) {
 	})());
 }
 
+function updateWatches(watches, imports) {
+	var changes = {added:[], removed: []};
+	
+	for (var file in watches) {
+		if (imports.indexOf(file) == -1) {
+			watches[file].close();
+			delete watches[file];
+			changes.removed.push(file);
+		}
+	}
+	
+	imports.forEach(function(file){
+    	if (!(file in watches)) {
+			watches[file] = watch(file, onchange);
+			changes.added.push(file);
+		}
+	});
+	
+	return changes;
+}
+
 function prefix(css, callback) {
 	if (applyPrefixes) {
 		console.log("Prefixing...");
-		postcss([autoprefixer]).process(css).then(callback);
+		postcss([autoprefixer]).process(css).then(function(css){
+			callback(null, css);
+		}, function(err){
+			callback(err);
+		});
 	} else {
-		callback(css);
+		callback(null, css);
 	}
 }
 
@@ -72,33 +99,17 @@ function timestamp() {
 	 ].join("");
 }
 
+var applyPrefixes = !cmdswitch("no-prefix");
+var targetBrowsers = cmdswitch("prefix-browsers", true);
+var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
+
+if (targetBrowsers)
+	autoprefixer = autoprefixer({browsers: targetBrowsers.split(/\s*,\s*/g)});
+
 if (fs.existsSync(input)) {
 	var output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
 	var watches = {};
 	var compileCount = 0;
-	
-
-	
-	function updateWatches(imports) {
-		var changes = {added:[], removed: []};
-		
-		for (var file in watches) {
-    		if (imports.indexOf(file) == -1) {
-    			watches[file].close();
-    			delete watches[file];
-    			changes.removed.push(file);
-    		}
-    	}
-    	
-    	imports.forEach(function(file){
-	    	if (!(file in watches)) {
-				watches[file] = watch(file, onchange);
-				changes.added.push(file);
-			}
-		});
-		
-		return changes;
-	}
 	
 	function onchange(){
 	    console.log("Compiling...");
@@ -113,17 +124,21 @@ if (fs.existsSync(input)) {
 	    			console.error(err.stack);
 	    		}
 	    	} else {
-	    		prefix(css, function(css){
-			    	fs.writeFileSync(output, css);
-			    	
-			    	var changes = updateWatches(imports);
-			    	if (changes.added.length)
-			    		console.log("Added:\n" + changes.added.join("\n"));
-			    	if (changes.removed.length)
-			    		console.log("Removed:\n" + changes.removed.join("\n"));
-			    	
-			    	console.timeEnd("Compilation");
-			    	console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
+	    		prefix(css, function(err, css){
+	    			if (err) {
+	    				console.error(err);
+	    			} else {
+				    	fs.writeFileSync(output, css);
+				    	
+				    	var changes = updateWatches(watches, imports);
+				    	if (changes.added.length)
+				    		console.log("Added:\n" + changes.added.join("\n"));
+				    	if (changes.removed.length)
+				    		console.log("Removed:\n" + changes.removed.join("\n"));
+				    	
+				    	console.timeEnd("Compilation");
+				    	console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
+			    	}
 	    		});
 	    	}
     	});

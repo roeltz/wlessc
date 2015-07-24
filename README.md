@@ -7,7 +7,7 @@ task for that (or worse, doing `lessc style.less > style.css` after every change
 You will have your output .css file in the same directory, with the same base
 name -just like GUI tools do by default.
 
-It uses the output AST from LESS to find @import'ed files and watches those too,
+It uses the output from LESS to find @import'ed files and watches those too,
 so it's not that dumb.
 
 wlessc +0.3 uses the **autoprefixer** library to add vendor prefixes to LESS
@@ -27,8 +27,8 @@ to do. Don't expect much from it.
     wlessc path/to/style.less
     
     # sets custom browser support for autoprefixer
-    wlessc --prefix-browsers "Firefox 5"
-    wlessc --prefix-browsers "last 1 version, > 1%, Explorer 7"
+    wlessc --prefix-browsers "last 1 version"
+    wlessc --prefix-browsers "last 5 version, > 1%"
     
     # turns off autoprefixer
     wlessc --no-prefix
