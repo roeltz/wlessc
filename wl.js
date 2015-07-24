@@ -5,6 +5,7 @@ var path = require("path");
 var less = require("less");
 var postcss = require("postcss");
 var autoprefixer = require("autoprefixer-core");
+var cssnano = require("cssnano");
 
 function cmdswitch(name, getValue) {
 	var index = process.argv.indexOf("--" + name);
@@ -73,7 +74,15 @@ function updateWatches(watches, imports) {
 function prefix(css, callback) {
 	if (applyPrefixes) {
 		console.log("Prefixing...");
-		postcss([autoprefixer]).process(css).then(function(css){
+		var pipeline = [autoprefixer];
+		
+		if (compact) {
+			pipeline.push(cssnano({
+				
+			}));
+		}
+		
+		postcss(pipeline).process(css).then(function(css){
 			callback(null, css);
 		}, function(err){
 			callback(err);
@@ -101,6 +110,7 @@ function timestamp() {
 
 var applyPrefixes = !cmdswitch("no-prefix");
 var targetBrowsers = cmdswitch("prefix-browsers", true);
+var compact = !cmdswitch("no-compact");
 var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
 
 if (targetBrowsers)

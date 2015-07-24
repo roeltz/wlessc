@@ -13,6 +13,9 @@ so it's not that dumb.
 wlessc +0.3 uses the **autoprefixer** library to add vendor prefixes to LESS
 output. This is on by default, but it can be tweaked or turned off.
 
+wlessc +0.4.3 uses the **cssnano** library to remove whitespace and apply other
+optimizations to reduce file size.
+
 This was done out of necessity in daily work, and it just does what I need it
 to do. Don't expect much from it.
 
@@ -32,3 +35,6 @@ to do. Don't expect much from it.
     
     # turns off autoprefixer
     wlessc --no-prefix
+    
+    # turns off cssnano optimizations
+    wlessc --no-compact
