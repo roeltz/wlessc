@@ -1,10 +1,11 @@
 {
 	"name": "wlessc",
 	"description": "Straightforward command line tool to watch a single .less file for compiling",
-	"version": "0.3.2",
+	"version": "0.4.0",
 	"dependencies": {
-		"less": "1.7.x",
-		"autoprefixer": "3.x"
+		"less": "2.x",
+		"postcss": "4.x",
+		"autoprefixer-core": "5.x"
 	},
 	"repository": {
 		"type": "git",
@@ -14,6 +15,6 @@
 	"author": {
 		"name": "Leonardo Rothe",
 		"email": "leo_rothe@msn.com",
-		"url": "http://leorothe.com/"
+		"url": "https://github.com/roeltz"
 	}
 }

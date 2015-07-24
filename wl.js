@@ -3,39 +3,31 @@
 var fs = require("fs");
 var path = require("path");
 var less = require("less");
-var autoprefixer = require("autoprefixer");
+var postcss = require("postcss");
+var autoprefixer = require("autoprefixer-core");
 
-function lookupImports(tree) {
-	var imports = [];
-	tree.rules.forEach(function(rule){
-		if ((rule instanceof less.tree.Import) && rule.importedFilename) {
-			imports.push(rule.importedFilename);
-		}
-	});
-	return imports;
-}
+var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
+var applyPrefixes = process.argv.indexOf("--no-prefix") == -1;
+var browsersIndex = process.argv.indexOf("--prefix-browsers");
+var targetBrowsers = browsersIndex != -1 ? process.argv[browsersIndex + 1].split(/\s*[,;]\s*/g) : null;
+
+if (targetBrowsers)
+	autoprefixer = autoprefixer(targetBrowsers);
 
 function compile(file, callback) {
-	console.time("Compilation");
-
-	var parser = new less.Parser({
-        paths: [path.dirname(file)],
-        filename: input
-    });
-
-    fs.readFile(file, "utf-8", function(err, data){
+    fs.readFile(file, "utf-8", function(err, lessInput){
     	if (err) {
     		callback(err);
     	} else {
-		    parser.parse(data, function (err, tree) {
+		    less.render(lessInput, {
+				paths: [path.dirname(file)],
+				filename: input
+		    }, function(err, output) {
 		        if (err) {
 		            callback(err);
 		        } else {
 		            try {
-		                var css = tree.toCSS({compress: true});
-		                var imports = lookupImports(tree);
-		                console.timeEnd("Compilation");
-		                callback(null, css, imports);
+		                callback(null, output.css, output.imports);
 		            } catch (ex) {
 		            	callback(ex);
 		            }
@@ -55,12 +47,37 @@ function watch(file, callback) {
 	})());
 }
 
-var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
+function prefix(css, callback) {
+	if (applyPrefixes) {
+		console.log("Prefixing...");
+		postcss([autoprefixer]).process(css).then(callback);
+	} else {
+		callback(css);
+	}
+}
+
+function pad(n) {
+	return n.toString().length == 1 ? "0" + n : n;
+}
+
+function timestamp() {
+	var now = new Date();
+	return [
+		now.getFullYear(),
+		"-", pad(now.getMonth() + 1),
+	 	"-", pad(now.getDate()),
+	 	" ", pad(now.getHours()),
+	 	":", pad(now.getMinutes()),
+	 	":", pad(now.getSeconds())
+	 ].join("");
+}
 
 if (fs.existsSync(input)) {
 	var output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
 	var watches = {};
 	var compileCount = 0;
+	
+
 	
 	function updateWatches(imports) {
 		var changes = {added:[], removed: []};
@@ -85,6 +102,7 @@ if (fs.existsSync(input)) {
 	
 	function onchange(){
 	    console.log("Compiling...");
+	    console.time("Compilation");
 	    
 	    compile(input, function(err, css, imports){
 	    	if (err) {
@@ -95,27 +113,18 @@ if (fs.existsSync(input)) {
 	    			console.error(err.stack);
 	    		}
 	    	} else {
-	    		if (process.argv.indexOf("--no-prefix") == -1) {
-	    			console.log("Adding prefixes...");
-	    			
-	    			var browsersIndex = process.argv.indexOf("--prefix-browsers")
-	    			if (browsersIndex != -1) {
-	    				var browsers = process.argv[browsersIndex + 1].split(/\s*[,;]\s*/g);
-	    				autoprefixer = autoprefixer.apply(null, browsers);
-	    			}
-	    			
-	    			css = autoprefixer.process(css).css;
-	    		}
-	    		
-		    	fs.writeFileSync(output, css);
-		    	
-		    	var changes = updateWatches(imports);
-		    	if (changes.added.length)
-		    		console.log("Added:", changes.added);
-		    	if (changes.removed.length)
-		    		console.log("Removed:", changes.removed);
-		    		
-		    	console.log("Done [" + ++compileCount + "]");
+	    		prefix(css, function(css){
+			    	fs.writeFileSync(output, css);
+			    	
+			    	var changes = updateWatches(imports);
+			    	if (changes.added.length)
+			    		console.log("Added:\n" + changes.added.join("\n"));
+			    	if (changes.removed.length)
+			    		console.log("Removed:\n" + changes.removed.join("\n"));
+			    	
+			    	console.timeEnd("Compilation");
+			    	console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
+	    		});
 	    	}
     	});
     }
