@@ -10,7 +10,7 @@ var cssnano = require("cssnano");
 function cmdswitch(name, getValue) {
 	var index = process.argv.indexOf("--" + name);
 	if (index > -1) {
-		var s = process.argv.splice(index, getValue ? 2 : 1);
+		var s = process.argv.slice(index, getValue ? index + 2 : index + 1);
 		return getValue ? s[1] : true;
 	} else {
 		return false;
@@ -112,6 +112,7 @@ function timestamp() {
 var applyPrefixes = !cmdswitch("no-prefix");
 var targetBrowsers = cmdswitch("prefix-browsers", true);
 var compact = !cmdswitch("no-compact");
+var once = cmdswitch("once");
 var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
 
 if (targetBrowsers)
@@ -141,11 +142,13 @@ if (fs.existsSync(input)) {
 	    			} else {
 				    	fs.writeFileSync(output, css);
 
-				    	var changes = updateWatches(watches, imports);
-				    	if (changes.added.length)
-				    		console.log("Added:\n" + changes.added.join("\n"));
-				    	if (changes.removed.length)
-				    		console.log("Removed:\n" + changes.removed.join("\n"));
+						if (!once) {
+				    		var changes = updateWatches(watches, imports);
+					    	if (changes.added.length)
+					    		console.log("Added:\n" + changes.added.join("\n"));
+					    	if (changes.removed.length)
+					    		console.log("Removed:\n" + changes.removed.join("\n"));
+						}
 
 				    	console.timeEnd("Compilation");
 				    	console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
@@ -155,8 +158,10 @@ if (fs.existsSync(input)) {
     	});
     }
 
-    console.log("Watching...");
-    watch(input, onchange);
+	if (!once) {
+		console.log("Watching...");
+	    watch(input, onchange);
+	}
 	onchange();
 } else {
 	console.error("File does not exist:", input);

@@ -41,3 +41,6 @@ to do. Don't expect much from it.
 
     # turns off cssnano optimizations
     wlessc --no-compact
+
+	# turns off watching at all, exiting after compiling
+    wlessc --once
