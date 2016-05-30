@@ -4,7 +4,7 @@ var fs = require("fs");
 var path = require("path");
 var less = require("less");
 var postcss = require("postcss");
-var autoprefixer = require("autoprefixer-core");
+var autoprefixer = require("autoprefixer");
 var cssnano = require("cssnano");
 
 function cmdswitch(name, getValue) {
@@ -52,7 +52,7 @@ function watch(file, callback) {
 
 function updateWatches(watches, imports) {
 	var changes = {added:[], removed: []};
-	
+
 	for (var file in watches) {
 		if (imports.indexOf(file) == -1) {
 			watches[file].close();
@@ -60,14 +60,14 @@ function updateWatches(watches, imports) {
 			changes.removed.push(file);
 		}
 	}
-	
+
 	imports.forEach(function(file){
     	if (!(file in watches)) {
 			watches[file] = watch(file, onchange);
 			changes.added.push(file);
 		}
 	});
-	
+
 	return changes;
 }
 
@@ -75,13 +75,14 @@ function prefix(css, callback) {
 	if (applyPrefixes) {
 		console.log("Prefixing...");
 		var pipeline = [autoprefixer];
-		
+
 		if (compact) {
 			pipeline.push(cssnano({
-				
+				convertValues: false,
+				colormin: false
 			}));
 		}
-		
+
 		postcss(pipeline).process(css).then(function(css){
 			callback(null, css);
 		}, function(err){
@@ -120,11 +121,11 @@ if (fs.existsSync(input)) {
 	var output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
 	var watches = {};
 	var compileCount = 0;
-	
+
 	function onchange(){
 	    console.log("Compiling...");
 	    console.time("Compilation");
-	    
+
 	    compile(input, function(err, css, imports){
 	    	if (err) {
 	    		if (err.type) {
@@ -139,13 +140,13 @@ if (fs.existsSync(input)) {
 	    				console.error(err);
 	    			} else {
 				    	fs.writeFileSync(output, css);
-				    	
+
 				    	var changes = updateWatches(watches, imports);
 				    	if (changes.added.length)
 				    		console.log("Added:\n" + changes.added.join("\n"));
 				    	if (changes.removed.length)
 				    		console.log("Removed:\n" + changes.removed.join("\n"));
-				    	
+
 				    	console.timeEnd("Compilation");
 				    	console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
 			    	}
@@ -153,7 +154,7 @@ if (fs.existsSync(input)) {
 	    	}
     	});
     }
-    
+
     console.log("Watching...");
     watch(input, onchange);
 	onchange();

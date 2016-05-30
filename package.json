@@ -1,13 +1,13 @@
 {
 	"name": "wlessc",
-	"version": "0.4.3",
+	"version": "0.5.0",
 	"description": "Straightforward command line tool to watch a single .less file for compiling",
 	"keywords": ["less", "autoprefixer", "cssnano", "css", "watch", "prefix", "minify", "tool", "cli"],
 	"dependencies": {
 		"less": "2.x",
-		"postcss": "4.x",
-		"autoprefixer-core": "5.x",
-		"cssnano": "2.x"
+		"postcss": "5.x",
+		"autoprefixer": "6.x",
+		"cssnano": "3.x"
 	},
 	"repository": {
 		"type": "git",
