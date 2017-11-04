@@ -8,10 +8,10 @@ var autoprefixer = require("autoprefixer");
 var cssnano = require("cssnano");
 
 function cmdinput() {
-	if (/^--/.test(process.argv[2])) {
-		return "style.less";
-	} else {
+	if (process.argv.length >= 3 && !/^--/.test(process.argv[2])) {
 		return process.argv[2];
+	} else {
+		return "style.less";
 	}
 }
 
