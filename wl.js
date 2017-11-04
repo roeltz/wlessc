@@ -7,6 +7,10 @@ var postcss = require("postcss");
 var autoprefixer = require("autoprefixer");
 var cssnano = require("cssnano");
 
+function cmdinput() {
+	return process.argv.slice(2).filter(a => !/^--/.test(a))[0] || "style.less";
+}
+
 function cmdswitch(name, getValue) {
 	var index = process.argv.indexOf("--" + name);
 	if (index > -1) {
@@ -18,26 +22,28 @@ function cmdswitch(name, getValue) {
 }
 
 function compile(file, callback) {
-    fs.readFile(file, "utf-8", function(err, lessInput){
-    	if (err) {
-    		callback(err);
-    	} else {
-		    less.render(lessInput, {
+	fs.readFile(file, "utf-8", function(err, codeInput){
+		if (err) {
+			callback(err);
+		} else if (path.extname(file).toLowerCase() == ".less") {
+			less.render(codeInput, {
 				paths: [path.dirname(file)],
 				filename: input
-		    }, function(err, output) {
-		        if (err) {
-		            callback(err);
-		        } else {
-		            try {
-		                callback(null, output.css, output.imports);
-		            } catch (ex) {
-		            	callback(ex);
-		            }
-		        }
-		    });
-	    }
-    });
+			}, function(err, output) {
+				if (err) {
+					callback(err);
+				} else {
+					try {
+						callback(null, output.css, output.imports);
+					} catch (ex) {
+						callback(ex);
+					}
+				}
+			});
+		} else {
+			callback(null, codeInput);
+		}
+	});
 }
 
 function watch(file, callback) {
@@ -62,7 +68,7 @@ function updateWatches(watches, imports) {
 	}
 
 	imports.forEach(function(file){
-    	if (!(file in watches)) {
+		if (!(file in watches)) {
 			watches[file] = watch(file, onchange);
 			changes.added.push(file);
 		}
@@ -102,65 +108,76 @@ function timestamp() {
 	return [
 		now.getFullYear(),
 		"-", pad(now.getMonth() + 1),
-	 	"-", pad(now.getDate()),
-	 	" ", pad(now.getHours()),
-	 	":", pad(now.getMinutes()),
-	 	":", pad(now.getSeconds())
-	 ].join("");
+		"-", pad(now.getDate()),
+		" ", pad(now.getHours()),
+		":", pad(now.getMinutes()),
+		":", pad(now.getSeconds())
+	].join("");
 }
 
 var applyPrefixes = !cmdswitch("no-prefix");
 var targetBrowsers = cmdswitch("prefix-browsers", true);
 var compact = !cmdswitch("no-compact");
 var once = cmdswitch("once");
-var input = path.resolve(process.cwd(), process.argv[2] || "style.less");
+var input = path.resolve(process.cwd(), cmdinput());
+var output = cmdswitch("output", true);
+
+if (output) {
+	output = path.resolve(process.cwd(), output);
+} else {
+	output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
+
+	if (/\.css\.css$/i.test(output))
+		output = output.replace(/\.css\.css$/, ".min.css");
+}
 
 if (targetBrowsers)
 	autoprefixer = autoprefixer({browsers: targetBrowsers.split(/\s*,\s*/g)});
 
 if (fs.existsSync(input)) {
-	var output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
 	var watches = {};
 	var compileCount = 0;
 
+	console.log("Output to", output);
+
 	function onchange(){
-	    console.log("Compiling...");
-	    console.time("Compilation");
+		console.log("Compiling...");
+		console.time("Compilation");
 
-	    compile(input, function(err, css, imports){
-	    	if (err) {
-	    		if (err.type) {
-	    			err = less.formatError(err);
-	    			console.error("Error:", ("\n" + err).split(/\n/gm).join("\n\t"));
-	    		} else {
-	    			console.error(err.stack);
-	    		}
-	    	} else {
-	    		prefix(css, function(err, css){
-	    			if (err) {
-	    				console.error(err);
-	    			} else {
-				    	fs.writeFileSync(output, css);
+		compile(input, function(err, css, imports){
+			if (err) {
+				if (err.type) {
+					err = less.formatError(err);
+					console.error("Error:", ("\n" + err).split(/\n/gm).join("\n\t"));
+				} else {
+					console.error(err.stack);
+				}
+			} else {
+				prefix(css, function(err, css){
+					if (err) {
+						console.error(err);
+					} else {
+						fs.writeFileSync(output, css);
 
-						if (!once) {
-				    		var changes = updateWatches(watches, imports);
-					    	if (changes.added.length)
-					    		console.log("Added:\n" + changes.added.join("\n"));
-					    	if (changes.removed.length)
-					    		console.log("Removed:\n" + changes.removed.join("\n"));
+						if (!once && imports) {
+							var changes = updateWatches(watches, imports);
+							if (changes.added.length)
+							console.log("Added:\n" + changes.added.join("\n"));
+							if (changes.removed.length)
+							console.log("Removed:\n" + changes.removed.join("\n"));
 						}
 
-				    	console.timeEnd("Compilation");
-				    	console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
-			    	}
-	    		});
-	    	}
-    	});
-    }
+						console.timeEnd("Compilation");
+						console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
+					}
+				});
+			}
+		});
+	}
 
 	if (!once) {
 		console.log("Watching...");
-	    watch(input, onchange);
+		watch(input, onchange);
 	}
 	onchange();
 } else {
