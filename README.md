@@ -14,32 +14,49 @@ so it's not that dumb.
 
 `npm install -g wlessc`
 
-## Usage ##
+## Usage
 
-	# will watch ./style.less
+	wlessc [<input>] [--output <path>] [--prefix-browsers <expr>|--no-prefix]
+			[--no-compact] [--once]
+
+### Options
+
+	<input>                     Input file. It can be a LESS or CSS file.
+	                            If omitted, ./style.less is used.
+	--output <path>             Custom output file path.
+	--prefix-browsers <expr>    Comma-separated expressions to set custom
+	                            browser support.
+	                            See https://github.com/ai/browserslist.
+	--no-prefix                 Omit prefixing.
+	--no-compact                Omit minification and other optimizations.
+	--once                      Compile once and exit.
+
+### Examples
+
+	# Will watch ./style.less
 	wlessc
 
-	# will watch path/to/style.less
+	# Will watch path/to/style.less
 	wlessc path/to/style.less
 
-	# will watch path/to/style.css, omitting LESS compilation
+	# Will watch path/to/style.css, omitting LESS compilation
 	# and using .min.css as default output extension
 	wlessc path/to/style.css
 
-	# will output to custom path/to/output.css
+	# Will output to custom path/to/output.css
 	wlessc --output path/to/output.css
 
-	# sets custom browser support for Autoprefixer
+	# Sets custom browser support for Autoprefixer
 	wlessc --prefix-browsers "last 1 version"
 	wlessc --prefix-browsers "last 5 version, > 1%"
 
-	# turns off Autoprefixer
+	# Turns off Autoprefixer
 	wlessc --no-prefix
 
-	# turns off cssnano optimizations
+	# Turns off cssnano optimizations
 	wlessc --no-compact
 
-	# turns off watching at all, exiting after compiling
+	# Turns off watching at all, exiting after compiling
 	wlessc --once
 
 ## Change log

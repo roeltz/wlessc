@@ -8,7 +8,11 @@ var autoprefixer = require("autoprefixer");
 var cssnano = require("cssnano");
 
 function cmdinput() {
-	return process.argv.slice(2).filter(a => !/^--/.test(a))[0] || "style.less";
+	if (/^--/.test(process.argv[2])) {
+		return "style.less";
+	} else {
+		return process.argv[2];
+	}
 }
 
 function cmdswitch(name, getValue) {
