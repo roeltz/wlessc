@@ -119,6 +119,10 @@ function timestamp() {
 	].join("");
 }
 
+function relative(file) {
+	return path.relative(process.cwd(), file);
+}
+
 var applyPrefixes = !cmdswitch("no-prefix");
 var targetBrowsers = cmdswitch("prefix-browsers", true);
 var compact = !cmdswitch("no-compact");
@@ -142,7 +146,8 @@ if (fs.existsSync(input)) {
 	var watches = {};
 	var compileCount = 0;
 
-	console.log("Output to", output);
+	console.log("Input:", relative(input));
+	console.log("Output:", relative(output));
 
 	function onchange(){
 		console.log("Compiling...");
@@ -166,9 +171,9 @@ if (fs.existsSync(input)) {
 						if (!once && imports) {
 							var changes = updateWatches(watches, imports);
 							if (changes.added.length)
-							console.log("Added:\n" + changes.added.join("\n"));
+							console.log("Added:\n" + changes.added.map(relative).join("\n"));
 							if (changes.removed.length)
-							console.log("Removed:\n" + changes.removed.join("\n"));
+							console.log("Removed:\n" + changes.removed.map(relative).join("\n"));
 						}
 
 						console.timeEnd("Compilation");
