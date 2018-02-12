@@ -74,6 +74,10 @@ wlessc 0.6.0 updates all of its dependencies, allows to be used with a plain CSS
 file for its Autoprefixer/cssnano goodies while skipping LESS compilation, and
 adds the `--output` switch.
 
+wlessc 0.6.3 configures LESS with {relativeUrls: true}, so url() always resolves
+relative to the current file and not the entry file. It also does away with a
+PostCSS warning.
+
 ## Disclaimer
 
 This was done out of necessity in daily work, and it just does what I need it

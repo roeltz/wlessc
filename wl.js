@@ -32,7 +32,8 @@ function compile(file, callback) {
 		} else if (path.extname(file).toLowerCase() == ".less") {
 			less.render(codeInput, {
 				paths: [path.dirname(file)],
-				filename: input
+				filename: input,
+				relativeUrls: true
 			}, function(err, output) {
 				if (err) {
 					callback(err);
@@ -93,7 +94,7 @@ function prefix(css, callback) {
 			}));
 		}
 
-		postcss(pipeline).process(css).then(function(css){
+		postcss(pipeline).process(css, {from: undefined}).then(function(css){
 			callback(null, css);
 		}, function(err){
 			callback(err);

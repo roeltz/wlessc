@@ -1,6 +1,6 @@
 {
 	"name": "wlessc",
-	"version": "0.6.2",
+	"version": "0.6.3",
 	"description": "Straightforward command line tool to watch a single .less file for compiling",
 	"keywords": [
 		"less",
