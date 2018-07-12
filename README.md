@@ -78,6 +78,9 @@ wlessc 0.6.3 configures LESS with {relativeUrls: true}, so url() always resolves
 relative to the current file and not the entry file. It also does away with a
 PostCSS warning.
 
+wlessc 0.7.0 updates all of its dependencies, changed its LESS syntax error message
+and includes startup messages (so it doesn't seem dead when running on slow machines).
+
 ## Disclaimer
 
 This was done out of necessity in daily work, and it just does what I need it

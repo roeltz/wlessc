@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 
+console.log("Loading fs");
 var fs = require("fs");
+console.log("Loading path");
 var path = require("path");
+console.log("Loading less");
 var less = require("less");
+console.log("Loading PostCSS");
 var postcss = require("postcss");
+console.log("Loading Autoprefixer");
 var autoprefixer = require("autoprefixer");
+console.log("Loading CSS Nano");
 var cssnano = require("cssnano");
+console.log("Ready");
 
 function cmdinput() {
 	if (process.argv.length >= 3 && !/^--/.test(process.argv[2])) {
@@ -157,8 +164,7 @@ if (fs.existsSync(input)) {
 		compile(input, function(err, css, imports){
 			if (err) {
 				if (err.type) {
-					err = less.formatError(err);
-					console.error("Error:", ("\n" + err).split(/\n/gm).join("\n\t"));
+					console.error("Error:", err.message, "\nAt", err.filename + ":" + err.line + ":" + err.column, "\n> " + err.extract.join("\n> "));
 				} else {
 					console.error(err.stack);
 				}
