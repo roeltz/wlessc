@@ -1,17 +1,12 @@
 #!/usr/bin/env node
 
-console.log("Loading fs");
+console.log("Loading...");
 var fs = require("fs");
-console.log("Loading path");
 var path = require("path");
-console.log("Loading less");
 var less = require("less");
-console.log("Loading PostCSS");
 var postcss = require("postcss");
-console.log("Loading Autoprefixer");
 var autoprefixer = require("autoprefixer");
-console.log("Loading CSS Nano");
-var cssnano = require("cssnano");
+var CleanCSS = require("clean-css");
 console.log("Ready");
 
 function cmdinput() {
@@ -92,23 +87,53 @@ function updateWatches(watches, imports) {
 function prefix(css, callback) {
 	if (applyPrefixes) {
 		console.log("Prefixing...");
-		var pipeline = [autoprefixer];
-
-		if (compact) {
-			pipeline.push(cssnano({
-				convertValues: false,
-				colormin: false
-			}));
-		}
-
-		postcss(pipeline).process(css, {from: undefined}).then(function(css){
-			callback(null, css);
+		postcss([autoprefixer]).process(css, {from: undefined}).then(function(result){
+			callback(null, result.css);
 		}, function(err){
 			callback(err);
 		});
 	} else {
 		callback(null, css);
 	}
+}
+
+function minify(css, callback) {
+	if (compact) {
+		try {
+			console.log("Minifying...");
+			var options = {
+				level: {
+					1: {
+						replaceTimeUnits: false,
+						replaceZeroUnits: false
+					},
+					2: {
+						mergeAdjacentRules: compactMore,
+						mergeIntoShorthands: compactMore,
+						mergeNonAdjacentRules: compactMore,
+						overrideProperties: compactMore,
+						restructureRules: compactMore
+					}
+				}
+			};
+			var output = new CleanCSS(options).minify(css);
+			callback(null, output.styles);
+		} catch (ex) {
+			callback(ex);
+		}
+	} else {
+		callback(null, css);
+	}
+}
+
+function postprocess(css, callback) {
+	prefix(css, function(err, css){
+		if (err) {
+			callback(err);
+		} else {
+			minify(css, callback);
+		}
+	});
 }
 
 function pad(n) {
@@ -134,6 +159,7 @@ function relative(file) {
 var applyPrefixes = !cmdswitch("no-prefix");
 var targetBrowsers = cmdswitch("prefix-browsers", true);
 var compact = !cmdswitch("no-compact");
+var compactMore = !cmdswitch("compact-more");
 var once = cmdswitch("once");
 var input = path.resolve(process.cwd(), cmdinput());
 var output = cmdswitch("output", true);
@@ -169,7 +195,7 @@ if (fs.existsSync(input)) {
 					console.error(err.stack);
 				}
 			} else {
-				prefix(css, function(err, css){
+				postprocess(css, function(err, css){
 					if (err) {
 						console.error(err);
 					} else {

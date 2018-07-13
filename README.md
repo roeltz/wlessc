@@ -17,7 +17,7 @@ so it's not that dumb.
 ## Usage
 
 	wlessc [<input>] [--output <path>] [--prefix-browsers <expr>|--no-prefix]
-			[--no-compact] [--once]
+			[--no-compact] [--compact-more] [--once]
 
 ### Options
 
@@ -29,6 +29,7 @@ so it's not that dumb.
 	                            See https://github.com/ai/browserslist.
 	--no-prefix                 Omit prefixing.
 	--no-compact                Omit minification and other optimizations.
+	--compact-more              Apply more level 2 optimizations from clean-css
 	--once                      Compile once and exit.
 
 ### Examples
@@ -53,7 +54,10 @@ so it's not that dumb.
 	# Turns off Autoprefixer
 	wlessc --no-prefix
 
-	# Turns off cssnano optimizations
+	# Turns off clean-css optimizations
+	wlessc --no-compact
+
+	# Applies level 2 optimizations from clean-css
 	wlessc --no-compact
 
 	# Turns off watching at all, exiting after compiling
@@ -80,6 +84,10 @@ PostCSS warning.
 
 wlessc 0.7.0 updates all of its dependencies, changed its LESS syntax error message
 and includes startup messages (so it doesn't seem dead when running on slow machines).
+
+wlessc 0.8.0 replaces cssnano with **clean-css** for CSS optimization. cssnano had
+many dependencies that reflected on wlessc's startup time. clean-css has an additional
+`--compact-more` switch, which applies further optimization.
 
 ## Disclaimer
 
