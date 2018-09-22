@@ -102,6 +102,7 @@ function minify(css, callback) {
 		try {
 			console.log("Minifying...");
 			var options = {
+				inline: false,
 				level: {
 					1: {
 						replaceTimeUnits: false,
