@@ -89,6 +89,9 @@ wlessc 0.8.0 replaces cssnano with **clean-css** for CSS optimization. cssnano h
 many dependencies that reflected on wlessc's startup time. clean-css has an additional
 `--compact-more` switch, which applies further optimization.
 
+wlessc 0.9.0 is rewritten from the ground up to use async/await, updates all
+of its dependencies and adds a `--help` switch.
+
 ## Disclaimer
 
 This was done out of necessity in daily work, and it just does what I need it

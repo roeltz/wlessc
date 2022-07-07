@@ -1,228 +1,237 @@
 #!/usr/bin/env node
 
-console.log("Loading...");
-var fs = require("fs");
-var path = require("path");
-var less = require("less");
-var postcss = require("postcss");
-var autoprefixer = require("autoprefixer");
-var CleanCSS = require("clean-css");
-console.log("Ready");
+const autoprefixer = require("autoprefixer");
+const CleanCSS = require("clean-css");
+const commandLineArgs = require("command-line-args");
+const { EventEmitter } = require("events");
+const { constants, watch } = require("fs");
+const { access, readFile, writeFile } = require("fs/promises");
+const less = require("less");
+const { dirname, extname, join, resolve, basename, relative } = require("path");
+const postCSS = require("postcss");
+const proc = require("process");
 
-function cmdinput() {
-	if (process.argv.length >= 3 && !/^--/.test(process.argv[2])) {
-		return process.argv[2];
+const DOUBLE_EXT_REGEX = /\.css\.css$/i;
+
+let busy = false;
+let requestedWhileBusy = false;
+let compileCount = 0;
+
+async function compile(file) {
+	let code = await readFile(file, "utf-8");
+
+	if (extname(file).toLowerCase() === ".less") {
+		let output = await less.render(code, {
+			paths: [dirname(file)],
+			filename: file,
+			relativeUrls: true
+		});
+
+		return [output.css, output.imports]
 	} else {
-		return "style.less";
+		return [code];
 	}
 }
 
-function cmdswitch(name, getValue) {
-	var index = process.argv.indexOf("--" + name);
-	if (index > -1) {
-		var s = process.argv.slice(index, getValue ? index + 2 : index + 1);
-		return getValue ? s[1] : true;
+function computeOutputPath(input, output) {
+	if (output) {
+		return resolve(proc.cwd(), output);
 	} else {
-		return false;
+		output = join(dirname(input), basename(input, ".less") + ".css");
+	}
+
+	if (DOUBLE_EXT_REGEX.test(output)) {
+		output = output.replace(DOUBLE_EXT_REGEX, ".min.css");
+	}
+
+	return output;
+}
+
+function computeRelativePath(file) {
+	return relative(proc.cwd(), file);
+}
+
+function help() {
+	const commandLineUsage = require("command-line-usage");
+	return console.log(commandLineUsage([
+		{
+			header: "wlessc",
+			content: "Watch, compile, prefix and minify .less/.css files"
+		},
+		{
+			header: "Usage",
+			content: [
+				"wlessc [<input>] [--output <path>]",
+				"[--prefix-browsers <expr> | --no-prefix]",
+				"[--no-compact | --compact-more] [--once]"
+			]
+		}
+	]));
+}
+
+async function main() {
+	let bus = new EventEmitter();
+	let options = commandLineArgs([
+		{ name: "compact-more", type: Boolean, defaultValue: false },
+		{ name: "help", type: Boolean },
+		{ name: "input", type: String, defaultOption: true, defaultValue: "style.less" },
+		{ name: "no-prefix", type: Boolean },
+		{ name: "no-compact", type: Boolean },
+		{ name: "once", type: Boolean },
+		{ name: "output", type: String },
+		{ name: "prefix-browsers", type: String }
+	], {
+		camelCase: true
+	});
+
+	if (options.help) {
+		return help();
+	}
+
+	if (options.prefixBrowsers) {
+		autoprefixer = autoprefixer({ browsers: options.prefixBrowsers.split(/\s*,\s*/g) });
+	}
+
+	let trackers = {};
+	let { once } = options;
+	let input = resolve(proc.cwd(), options.input);
+	let output = computeOutputPath(input, options.output);
+	let onchange = () => process(input, output, trackers, bus, options);
+
+	try {
+		await access(input, constants.R_OK);
+
+		console.log(`Input: ${computeRelativePath(input)}`);
+		console.log(`Output: ${computeRelativePath(output)}`);
+
+		if (!once) {
+			track(input, bus);
+			bus.on("change", onchange);
+		}
+
+		onchange();
+	} catch (err) {
+		console.error("File does not exists:", input);
 	}
 }
 
-function compile(file, callback) {
-	fs.readFile(file, "utf-8", function(err, codeInput){
-		if (err) {
-			callback(err);
-		} else if (path.extname(file).toLowerCase() == ".less") {
-			less.render(codeInput, {
-				paths: [path.dirname(file)],
-				filename: input,
-				relativeUrls: true
-			}, function(err, output) {
-				if (err) {
-					callback(err);
-				} else {
-					try {
-						callback(null, output.css, output.imports);
-					} catch (ex) {
-						callback(ex);
-					}
-				}
-			});
-		} else {
-			callback(null, codeInput);
+function minify(css, more) {
+	let clean = new CleanCSS({
+		inline: false,
+		level: {
+			1: {
+				replaceTimeUnits: false,
+				replaceZeroUnits: false,
+				specialComments: 0
+			},
+			2: {
+				mergeAdjacentRules: more,
+				mergeIntoShorthands: more,
+				mergeNonAdjacentRules: more,
+				overrideProperties: more,
+				restructureRules: more
+			}
 		}
 	});
+	let result = clean.minify(css);
+	return result.styles;
 }
 
-function watch(file, callback) {
-	return fs.watch(file, {persistent: true}, (function(){
-		var tid;
-		return function() {
+async function prefix(css) {
+	let result = await postCSS([autoprefixer]).process(css, { from: undefined });
+	return result.css;
+}
+
+async function process(input, output, trackers, bus, options) {
+	if (busy) {
+		requestedWhileBusy = true;
+		return;
+	} else {
+		busy = true;
+		requestedWhileBusy = false;
+	}
+
+	console.log("Compiling...");
+	console.time("Compilation");
+
+	try {
+		let [css, imports] = await compile(input);
+		css = await postprocess(css, options);
+		await writeFile(output, css);
+
+		if (!options.once && imports) {
+			let { added, removed } = updateTrackers(trackers, imports, bus);
+
+			if (added.length) {
+				console.log(`Added:\n  ${added.map(computeRelativePath).join("\n  ")}`);
+			}
+
+			if (removed.length) {
+				console.log(`Removed:\n  ${removed.map(computeRelativePath).join("\n  ")}`);
+			}
+		}
+	} catch (err) {
+		if (err.extract) {
+			console.error(`Error: ${err.message}\nAt ${err.filename}:${err.line}:${err.column}\n>${err.extract.join("\n> ")}`);
+		} else {
+			console.error(err);
+		}
+	}
+
+	console.timeEnd("Compilation");
+	console.log(`Done [ #${++compileCount} - ${new Date().toISOString()} ]`);
+
+	busy = false;
+
+	if (requestedWhileBusy) {
+		bus.emit("change");
+	}
+}
+
+async function postprocess(css, options) {
+	if (!options.noPrefix) {
+		console.log("Prefixing...");
+		css = await prefix(css);
+	}
+
+	if (!options.noCompact) {
+		console.log("Minifying...");
+		css = minify(css, options.compactMore);
+	}
+
+	return css;
+}
+
+function track(file, bus) {
+	return watch(file, { persistent: true }, (() => {
+		let tid;
+		return () => {
 			clearTimeout(tid);
-			tid = setTimeout(callback, 500);
+			tid = setTimeout(() => bus.emit("change"), 200);
 		};
 	})());
 }
 
-function updateWatches(watches, imports) {
-	var changes = {added:[], removed: []};
+function updateTrackers(trackers, imports, bus) {
+	let added = [];
+	let removed = [];
 
-	for (var file in watches) {
-		if (imports.indexOf(file) == -1) {
-			watches[file].close();
-			delete watches[file];
-			changes.removed.push(file);
+	for (let file in trackers) {
+		if (imports.indexOf(file) === -1) {
+			trackers[file].close();
+			delete trackers[file];
+			removed.push(file);
 		}
 	}
 
-	imports.forEach(function(file){
-		if (!(file in watches)) {
-			watches[file] = watch(file, onchange);
-			changes.added.push(file);
+	for (let file of imports) {
+		if (!(file in trackers)) {
+			trackers[file] = track(file, bus);
+			added.push(file);
 		}
-	});
-
-	return changes;
-}
-
-function prefix(css, callback) {
-	if (applyPrefixes) {
-		console.log("Prefixing...");
-		postcss([autoprefixer]).process(css, {from: undefined}).then(function(result){
-			callback(null, result.css);
-		}, function(err){
-			callback(err);
-		});
-	} else {
-		callback(null, css);
-	}
-}
-
-function minify(css, callback) {
-	if (compact) {
-		try {
-			console.log("Minifying...");
-			var options = {
-				inline: false,
-				level: {
-					1: {
-						replaceTimeUnits: false,
-						replaceZeroUnits: false
-					},
-					2: {
-						mergeAdjacentRules: compactMore,
-						mergeIntoShorthands: compactMore,
-						mergeNonAdjacentRules: compactMore,
-						overrideProperties: compactMore,
-						restructureRules: compactMore
-					}
-				}
-			};
-			var output = new CleanCSS(options).minify(css);
-			callback(null, output.styles);
-		} catch (ex) {
-			callback(ex);
-		}
-	} else {
-		callback(null, css);
-	}
-}
-
-function postprocess(css, callback) {
-	prefix(css, function(err, css){
-		if (err) {
-			callback(err);
-		} else {
-			minify(css, callback);
-		}
-	});
-}
-
-function pad(n) {
-	return n.toString().length == 1 ? "0" + n : n;
-}
-
-function timestamp() {
-	var now = new Date();
-	return [
-		now.getFullYear(),
-		"-", pad(now.getMonth() + 1),
-		"-", pad(now.getDate()),
-		" ", pad(now.getHours()),
-		":", pad(now.getMinutes()),
-		":", pad(now.getSeconds())
-	].join("");
-}
-
-function relative(file) {
-	return path.relative(process.cwd(), file);
-}
-
-var applyPrefixes = !cmdswitch("no-prefix");
-var targetBrowsers = cmdswitch("prefix-browsers", true);
-var compact = !cmdswitch("no-compact");
-var compactMore = !cmdswitch("compact-more");
-var once = cmdswitch("once");
-var input = path.resolve(process.cwd(), cmdinput());
-var output = cmdswitch("output", true);
-
-if (output) {
-	output = path.resolve(process.cwd(), output);
-} else {
-	output = path.join(path.dirname(input), path.basename(input, ".less") + ".css");
-
-	if (/\.css\.css$/i.test(output))
-		output = output.replace(/\.css\.css$/, ".min.css");
-}
-
-if (targetBrowsers)
-	autoprefixer = autoprefixer({browsers: targetBrowsers.split(/\s*,\s*/g)});
-
-if (fs.existsSync(input)) {
-	var watches = {};
-	var compileCount = 0;
-
-	console.log("Input:", relative(input));
-	console.log("Output:", relative(output));
-
-	function onchange(){
-		console.log("Compiling...");
-		console.time("Compilation");
-
-		compile(input, function(err, css, imports){
-			if (err) {
-				if (err.type) {
-					console.error("Error:", err.message, "\nAt", err.filename + ":" + err.line + ":" + err.column, "\n> " + err.extract.join("\n> "));
-				} else {
-					console.error(err.stack);
-				}
-			} else {
-				postprocess(css, function(err, css){
-					if (err) {
-						console.error(err);
-					} else {
-						fs.writeFileSync(output, css);
-
-						if (!once && imports) {
-							var changes = updateWatches(watches, imports);
-							if (changes.added.length)
-							console.log("Added:\n" + changes.added.map(relative).join("\n"));
-							if (changes.removed.length)
-							console.log("Removed:\n" + changes.removed.map(relative).join("\n"));
-						}
-
-						console.timeEnd("Compilation");
-						console.log("Done [", "#" + ++compileCount, "-", timestamp(), "]");
-					}
-				});
-			}
-		});
 	}
 
-	if (!once) {
-		console.log("Watching...");
-		watch(input, onchange);
-	}
-	onchange();
-} else {
-	console.error("File does not exist:", input);
+	return { added, removed };
 }
+
+main();
